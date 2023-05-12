@@ -8,7 +8,7 @@ private:
 	GLenum texture;
 
 public:
-	Texture3D(int format, int width, int height, int depth);
+	Texture3D(void* data, int format, int width, int height, int depth);
 
 	void bind(GLenum texture = GL_TEXTURE0);
 	void unbind();

@@ -10,15 +10,19 @@
 
 const unsigned int WINDOW_DIM[] = { 1920,1080 };
 
-const unsigned int GRID_DIM[] = { 512, 512, 512 };
+const unsigned int GRID_DIM[] = { 128, 128, 128 };
 
-glm::vec3 position = glm::vec3(2, 2, 2);
+float *field = nullptr;
 
-Camera camera = Camera(position);
+//const float* field[GRID_DIM[0] * GRID_DIM[1] * GRID_DIM[2]];
+
+Camera camera = Camera(glm::vec3(0, 0, 0), 3.0f, glm::radians(90.0f), 0.0f);
 bool camera_pan = false;
 
 float cursor_x, cursor_y;
 float cursor_last_x, cursor_last_y;
+
+float z_index = 0.0f;
 
 void processInput(GLFWwindow* window, float delta_time);
 
@@ -26,7 +30,7 @@ void mouse_callback(GLFWwindow* window, double x, double y);
 void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods);
 void mouse_button_callback(GLFWwindow* window, int button, int action, int mods);
 
-float* generateScalarField(int width, int height, int depth);
+float* generateScalarField(int width, int height, int depth, float scale);
 
 int main() {
     /* GLFW WINDOW */
@@ -35,7 +39,7 @@ int main() {
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 4);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
-    GLFWwindow* window = glfwCreateWindow(WINDOW_DIM[0], WINDOW_DIM[1], "Neptune3D", nullptr, nullptr);
+    GLFWwindow* window = glfwCreateWindow(WINDOW_DIM[0], WINDOW_DIM[1], "Aura", nullptr, nullptr);
     if (window == nullptr) {
         std::cout << "average rice window creator" << std::endl;
         glfwTerminate();
@@ -58,53 +62,53 @@ int main() {
     }
     glEnable(GL_DEPTH_TEST);
     glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_DST_ALPHA);
-    glDisable(GL_CULL_FACE);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    glEnable(GL_CULL_FACE);
 
     /* GEOMETRY */
     float domain_vertex_data[] = {
-        //position		        //texel
-        -0.5, -0.5, -0.5,       0, 0, 0,
-         0.5, -0.5, -0.5,       1, 0, 0,
-         0.5,  0.5, -0.5,       1, 1, 0,
-         0.5,  0.5, -0.5,       1, 1, 0,
-        -0.5,  0.5, -0.5,       0, 1, 0,
-        -0.5, -0.5, -0.5,       0, 0, 0,
+        //position		          //texel
+        -0.5, -0.5, -0.5,         0, 0, 0,              // BACK FACE
+         0.5,  0.5, -0.5,         1,  1, 0,
+         0.5, -0.5, -0.5,         1, 0, 0,
+         0.5,  0.5, -0.5,         1,  1, 0,
+        -0.5, -0.5, -0.5,         0, 0, 0,
+        -0.5,  0.5, -0.5,         0,  1, 0,
 
-        -0.5, -0.5,  0.5,       0, 0, 1,
-         0.5, -0.5,  0.5,       1, 0, 1,
-         0.5,  0.5,  0.5,       1, 1, 1,
-         0.5,  0.5,  0.5,       1, 1, 1,
-        -0.5,  0.5,  0.5,       0, 1, 1,
-        -0.5, -0.5,  0.5,       0, 0, 1,
+        -0.5, -0.5,  0.5,         0, 0,  1,             // FRONT FACE
+         0.5, -0.5,  0.5,         1, 0,  1,
+         0.5,  0.5,  0.5,         1,  1,  1,
+         0.5,  0.5,  0.5,         1,  1,  1,
+        -0.5,  0.5,  0.5,         0,  1,  1,
+        -0.5, -0.5,  0.5,         0, 0,  1,
 
-        -0.5,  0.5,  0.5,       0, 1, 1,
-        -0.5,  0.5, -0.5,       0, 1, 0,
-        -0.5, -0.5, -0.5,       0, 0, 0,
-        -0.5, -0.5, -0.5,       0, 0, 0,
-        -0.5, -0.5,  0.5,       0, 0, 1,
-        -0.5,  0.5,  0.5,       0, 1, 1,
+        -0.5,  0.5,  0.5,         0,  1,  1,            // LEFT FACE
+        -0.5,  0.5, -0.5,         0,  1, 0,
+        -0.5, -0.5, -0.5,         0, 0, 0,
+        -0.5, -0.5, -0.5,         0, 0, 0,
+        -0.5, -0.5,  0.5,         0, 0,  1,
+        -0.5,  0.5,  0.5,         0,  1,  1,
 
-         0.5,  0.5,  0.5,       1, 1, 1,
-         0.5,  0.5, -0.5,       1, 1, 0,
-         0.5, -0.5, -0.5,       1, 0, 0,
-         0.5, -0.5, -0.5,       1, 0, 0,
-         0.5, -0.5,  0.5,       1, 0, 1,
-         0.5,  0.5,  0.5,       1, 1, 1,
+         0.5,  0.5,  0.5,         1,  1,  1,            // RIGHT FACE
+         0.5, -0.5, -0.5,         1, 0, 0,
+         0.5,  0.5, -0.5,         1,  1, 0,
+         0.5, -0.5, -0.5,         1, 0, 0,
+         0.5,  0.5,  0.5,         1,  1,  1,
+         0.5, -0.5,  0.5,         1, 0,  1,
 
-        -0.5, -0.5, -0.5,       0, 1, 0,
-         0.5, -0.5, -0.5,       1, 1, 0,
-         0.5, -0.5,  0.5,       1, 1, 1,
-         0.5, -0.5,  0.5,       1, 1, 1,
-        -0.5, -0.5,  0.5,       0, 1, 1,
-        -0.5, -0.5, -0.5,       0, 1, 0,
+        -0.5, -0.5, -0.5,         0, 0, 0,              // BOTTOM FACE
+         0.5, -0.5, -0.5,         1, 0, 0,
+         0.5, -0.5,  0.5,         1, 0,  1,
+         0.5, -0.5,  0.5,         1, 0,  1,
+        -0.5, -0.5,  0.5,         0, 0,  1,
+        -0.5, -0.5, -0.5,         0, 0, 0,
 
-        -0.5,  0.5, -0.5,       0, 1, 0,
-         0.5,  0.5, -0.5,       1, 1, 0,
-         0.5,  0.5,  0.5,       1, 1, 1,
-         0.5,  0.5,  0.5,       1, 1, 1,
-        -0.5,  0.5,  0.5,       0, 1, 1,
-        -0.5,  0.5, -0.5,       0, 1, 0
+        -0.5,  0.5, -0.5,         0,  1, 0,             // TOP FACE
+         0.5,  0.5,  0.5,         1,  1,  1,
+         0.5,  0.5, -0.5,         1,  1, 0,
+         0.5,  0.5,  0.5,         1,  1,  1,
+        -0.5,  0.5, -0.5,         0,  1, 0,
+        -0.5,  0.5,  0.5,         0,  1,  1
     };
 
     unsigned int domain_vbo, domain_vao;
@@ -125,12 +129,17 @@ int main() {
     Shader render("render.vert", "render.frag");
     render.use();
 
-    /* FRAMEBUFFER */
-    FrameBuffer data_renderer(1);
+    render.setUniform("uGridDim", GRID_DIM[0], GRID_DIM[1], GRID_DIM[2]);
+    glm::vec3 boxVector = glm::vec3(1.0f, 1.0f, 1.0f);
+    render.setUniform("uBoxVector", boxVector);
+
 
     /* TEXTURE */
-    Texture3D velocity0(GL_RGB16F, GRID_DIM[0], GRID_DIM[1], GRID_DIM[2]);
+    field = generateScalarField(GRID_DIM[0], GRID_DIM[1], GRID_DIM[2], 5.0f);
+    Texture3D density_field(field, GL_R16F, GRID_DIM[0], GRID_DIM[1], GRID_DIM[2]);
 
+    density_field.bind();
+    render.setUniform("uField", 0);
 
     float last_frame = static_cast<float>(glfwGetTime());
     float delta_time = 0;
@@ -143,7 +152,7 @@ int main() {
         processInput(window, delta_time);
 
         if (camera_pan) {
-            camera.processPan(cursor_last_x - cursor_x, cursor_y - cursor_last_y);
+            camera.processPan(cursor_x - cursor_last_x, cursor_last_y-cursor_y);
             cursor_last_x = cursor_x;
             cursor_last_y = cursor_y;
         }
@@ -162,6 +171,9 @@ int main() {
         glm::mat4 projection = glm::perspective(glm::radians(camera.zoom), (float)WINDOW_DIM[0] / (float)WINDOW_DIM[1], 0.1f, 100.0f);
         render.setUniform("uProjection", projection);
 
+        //render.setUniform("z", z_index);
+        render.setUniform("uCameraPosition", camera.position);
+        render.setUniform("uCameraFront", camera.front);
 
         glBindVertexArray(domain_vao);
         glDrawArrays(GL_TRIANGLES, 0, 36);
@@ -173,25 +185,35 @@ int main() {
     glDeleteBuffers(1, &domain_vbo);
     glDeleteVertexArrays(1, &domain_vao);
 
+    delete[] field;
+
     return 0;
 }
 
 void processInput(GLFWwindow* window, float delta_time) {
-    if (glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS)
-        camera.processMovement(FORWARD, delta_time);
-    if (glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS)
-        camera.processMovement(BACKWARD, delta_time);
-    /*if (glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS)
-        camera.processMovement(RIGHT, delta_time);
-    if (glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_PRESS)
-        camera.processMovement(LEFT, delta_time);*/
+    
 }
 
 void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods) {
     if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS)
         glfwSetWindowShouldClose(window, true);
-    if (key == GLFW_KEY_E)
-        std::cout << glm::to_string(camera.position) << std::endl << glm::to_string(camera.up) << std::endl << glm::to_string(camera.front) << std::endl;
+    if (key == GLFW_KEY_E && action == GLFW_RELEASE) {
+        int z = z_index * GRID_DIM[2];
+        std::cout << "Slice for z = " << z << std::endl;
+
+        /*for (int j = 0; j < GRID_DIM[1]; j++) {
+            for (int i = 0; i < GRID_DIM[0]; i++)
+                std::cout << field[GRID_DIM[0] * GRID_DIM[1] * z + GRID_DIM[0] * j + i] << ' ';
+
+            std::cout << std::endl;
+        }*/
+    }
+    if (key == GLFW_KEY_RIGHT && z_index <= 0.99f) {
+        z_index += 0.01f;
+    }
+    if (key == GLFW_KEY_LEFT && z_index >= 0.01f) {
+        z_index -= 0.01f;
+    }
 }
 
 void mouse_callback(GLFWwindow* window, double x, double y) {
@@ -202,21 +224,41 @@ void mouse_callback(GLFWwindow* window, double x, double y) {
 void mouse_button_callback(GLFWwindow* window, int button, int action, int mods) {
     if (button == GLFW_MOUSE_BUTTON_1) {
         if (action == GLFW_PRESS && mods == GLFW_MOD_ALT) {
+            glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
             camera_pan = true;
             cursor_last_x = cursor_x;
             cursor_last_y = cursor_y;
         }
         else if (action == GLFW_RELEASE) {
+            glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+            camera_pan = false;
+        }
+    }
+    else if (button == GLFW_MOUSE_BUTTON_MIDDLE) {
+        if (action == GLFW_PRESS) {
+            glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+            camera_pan = true;
+            cursor_last_x = cursor_x;
+            cursor_last_y = cursor_y;
+        }
+        else if (action == GLFW_RELEASE) {
+            glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
             camera_pan = false;
         }
     }
 }
 
-float* generateScalarField(int width, int height, int depth) {
+float* generateScalarField(int width, int height, int depth, float scale) {
 	float* field = new float[height * width * depth];
-	for (int x = 0; x < width; x++)
-		for (int y = 0; y < height; y++)
-			for (int z = 0; z < depth; z++)
-				field[width*height*z+width*y+x] = (float)pow(2.71828, -pow(x-width/2, 2) - pow(y-height/2, 2) - pow(z-depth/2, 2));
+	for (int i = 0; i < width; i++)
+		for (int j = 0; j < height; j++)
+            for (int k = 0; k < depth; k++) {
+                float x = scale * ((float)i / width - 0.5);
+                float y = scale * ((float)j / height - 0.5);
+                float z = scale * ((float)k / depth - 0.5);
+                //field[width * height * k + width * j + i] = (float)(pow(2.71828, -pow(x, 2) - pow(y, 2) - pow(z, 2)))*scale*sin(x*y*z);
+                //field[width * height * k + width * j + i] = (float)(pow(2.71828, -pow(x, 2) - pow(y, 2) - pow(z, 2)));
+                field[width * height * k + width * j + i] = x + y + z;
+            }
 	return field;
 }
