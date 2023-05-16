@@ -7,6 +7,7 @@
 #include "Texture3D.h"
 #include "FrameBuffer.h"
 #include "ViewportCamera.h"
+#include <algorithm>
 
 const unsigned int WINDOW_DIM[] = { 1920,1080 };
 
@@ -63,7 +64,7 @@ int main() {
     glEnable(GL_DEPTH_TEST);
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-    glEnable(GL_CULL_FACE);
+    //glEnable(GL_CULL_FACE);
 
     /* GEOMETRY */
     float domain_vertex_data[] = {
@@ -130,12 +131,12 @@ int main() {
     render.use();
 
     render.setUniform("uGridDim", GRID_DIM[0], GRID_DIM[1], GRID_DIM[2]);
-    glm::vec3 boxVector = glm::vec3(1.0f, 1.0f, 1.0f);
-    render.setUniform("uBoxVector", boxVector);
+    render.setUniform("uBoxVector", 1, 1, 1);
+    render.setUniform("uBoxLowerCorner", -0.5f, -0.5f, -0.5f);
 
 
     /* TEXTURE */
-    field = generateScalarField(GRID_DIM[0], GRID_DIM[1], GRID_DIM[2], 5.0f);
+    field = generateScalarField(GRID_DIM[0], GRID_DIM[1], GRID_DIM[2], 5.5f);
     Texture3D density_field(field, GL_R16F, GRID_DIM[0], GRID_DIM[1], GRID_DIM[2]);
 
     density_field.bind();
@@ -250,15 +251,22 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
 
 float* generateScalarField(int width, int height, int depth, float scale) {
 	float* field = new float[height * width * depth];
+    float threshold = 0.3f;
 	for (int i = 0; i < width; i++)
 		for (int j = 0; j < height; j++)
             for (int k = 0; k < depth; k++) {
                 float x = scale * ((float)i / width - 0.5);
                 float y = scale * ((float)j / height - 0.5);
                 float z = scale * ((float)k / depth - 0.5);
-                //field[width * height * k + width * j + i] = (float)(pow(2.71828, -pow(x, 2) - pow(y, 2) - pow(z, 2)))*scale*sin(x*y*z);
-                //field[width * height * k + width * j + i] = (float)(pow(2.71828, -pow(x, 2) - pow(y, 2) - pow(z, 2)));
-                field[width * height * k + width * j + i] = x + y + z;
+
+                float radius_squared = x * x + y * y + z * z;
+                field[width * height * k + width * j + i] = (float)(pow(2.71828, -radius_squared))*scale*(pow(sin(x*y*z), 2) < threshold)? pow(sin(x * y * z), 2) : 0;
+                field[width * height * k + width * j + i] += (float)( pow(2.71828, -radius_squared) * (1/scale) * (pow(sin(scale * radius_squared), 2)));
+                //field[width * height * k + width * j + i] += (float)(pow(2.71828, -pow(x, 2) - pow(y, 2) - pow(z, 2)));
+                //field[width * height * k + width * j + i] = pow(x,2);
+                //field[width * height * k + width * j + i] = (float)pow(sin(x),2);
+                //field[width * height * k + width * j + i] = std::max((float)sin(x) + sin(y) + sin(z), 0.0f);
+                //field[width * height * k + width * j + i] = ((radius_squared > 2 && radius_squared < 3)? 0.2f : 0.0f) * std::max(sin(x), 0.0f);
             }
 	return field;
 }

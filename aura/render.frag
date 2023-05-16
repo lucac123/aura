@@ -13,6 +13,7 @@ uniform vec3 uCameraFront;
 uniform float z;
 
 uniform vec3 uBoxVector;
+uniform vec3 uBoxLowerCorner;
 
 uniform vec3 uGridDim;
 
@@ -23,22 +24,27 @@ vec3 globalToTexel(vec3 coord);
 bool isTexelInBounds(vec3 texel);
 
 void main() {
-	float opacity = 0;
+	vec3 front = normalize(vFragGlobalPosition - uCameraPosition);
+	float ray_brightness = 0;
 
-	float step_size = 1/uGridDim.x;
+	float step_size = 0.001;
+	float particle_brightness = 0.01;
 
 	vec3 density_sample = vFragGlobalPosition;
 	while (isTexelInBounds(globalToTexel(density_sample))) {
-		opacity += texture(uField, globalToTexel(density_sample)).x;
-
-		density_sample = density_sample + step_size*uCameraFront;
+		ray_brightness += particle_brightness * texture(uField, globalToTexel(density_sample)).r;
+		//ray_brightness += 0.01;
+		density_sample = density_sample + step_size*front;
 	}
 
-	fColor = vec4(vec3(1), opacity);
+	fColor = vec4(vec3(1), ray_brightness);
+	//fColor = vec4(globalToTexel(vFragGlobalPosition), 1);
+	//fColor = vec4(density_sample, ray_brightness);
+	//fColor = vec4(vec3(ray_brightness), 1);
 }
 
 vec3 globalToTexel(vec3 coord) {
-	return coord/uBoxVector+vec3(0.5);
+	return (coord - uBoxLowerCorner) / uBoxVector;
 }
 
 bool isTexelInBounds(vec3 texel) {
