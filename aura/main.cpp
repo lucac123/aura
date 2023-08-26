@@ -136,7 +136,7 @@ int main() {
 
 
     /* TEXTURE */
-    field = generateScalarField(GRID_DIM[0], GRID_DIM[1], GRID_DIM[2], 5.5f);
+    field = generateScalarField(GRID_DIM[0], GRID_DIM[1], GRID_DIM[2], 1.0f);
     Texture3D density_field(field, GL_R16F, GRID_DIM[0], GRID_DIM[1], GRID_DIM[2]);
 
     density_field.bind();
@@ -157,6 +157,7 @@ int main() {
             cursor_last_x = cursor_x;
             cursor_last_y = cursor_y;
         }
+
 
         glClearColor(0.2, 0.2, 0.2, 1);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -255,18 +256,35 @@ float* generateScalarField(int width, int height, int depth, float scale) {
 	for (int i = 0; i < width; i++)
 		for (int j = 0; j < height; j++)
             for (int k = 0; k < depth; k++) {
-                float x = scale * ((float)i / width - 0.5);
-                float y = scale * ((float)j / height - 0.5);
-                float z = scale * ((float)k / depth - 0.5);
 
+                float x, y, z;
+                int index = width * height * k + width * j + i;
+
+                /* EQUATIONS */
+                /* LINEAR
+                x = scale * 0.1 * ((float)i / width);
+                y = scale * 0.1 * ((float)j / height);
+                z = scale * 0.1 * ((float)k / depth);
+                field[index] = x + y + z;
+                //*/
+
+                /* INVERSE SPHERE
+                x = scale * 0.8 * ((float)i / width - 0.5f);
+                z = scale * 0.8 * ((float)k / width - 0.5f);
+                y = scale * 0.8 * ((float)j / width - 0.5f);
                 float radius_squared = x * x + y * y + z * z;
-                field[width * height * k + width * j + i] = (float)(pow(2.71828, -radius_squared))*scale*(pow(sin(x*y*z), 2) < threshold)? pow(sin(x * y * z), 2) : 0;
-                field[width * height * k + width * j + i] += (float)( pow(2.71828, -radius_squared) * (1/scale) * (pow(sin(scale * radius_squared), 2)));
-                //field[width * height * k + width * j + i] += (float)(pow(2.71828, -pow(x, 2) - pow(y, 2) - pow(z, 2)));
-                //field[width * height * k + width * j + i] = pow(x,2);
-                //field[width * height * k + width * j + i] = (float)pow(sin(x),2);
-                //field[width * height * k + width * j + i] = std::max((float)sin(x) + sin(y) + sin(z), 0.0f);
-                //field[width * height * k + width * j + i] = ((radius_squared > 2 && radius_squared < 3)? 0.2f : 0.0f) * std::max(sin(x), 0.0f);
+                field[index] = radius_squared;
+                //*/
+
+                //* MISC
+                x = scale * 20.0f * ((float)i / width - 0.5f);
+                z = scale * 20.0f * ((float)k / width - 0.5f);
+                y = scale * 20.0f * ((float)j / width - 0.5f);
+                float radius_squared = x * x + y * y + z * z;
+                field[index] = (float)(pow(2.71828, -radius_squared)) * scale * (pow(sin(x * y * z), 2) < threshold) ? pow(sin(x * y * z), 2) : 0;
+                field[index] += (float)(pow(2.71828, -radius_squared) * (1 / scale) * (pow(sin(scale * radius_squared), 2)));
+
+
             }
 	return field;
 }

@@ -28,7 +28,7 @@ void main() {
 	float ray_brightness = 0;
 
 	float step_size = 0.001;
-	float particle_brightness = 0.01;
+	float particle_brightness = 0.005;
 
 	vec3 density_sample = vFragGlobalPosition;
 	while (isTexelInBounds(globalToTexel(density_sample))) {
